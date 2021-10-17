@@ -1,5 +1,5 @@
 {
-  "name": "prettier-eslint-8",
+  "name": "@0x706b/prettier-eslint-8",
   "version": "0.0.0",
   "main": "dist/index.js",
   "license": "MIT",
