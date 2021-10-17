@@ -6,6 +6,9 @@
   "scripts": {
     "build": "yarn tsc"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "devDependencies": {
     "@0x706b/eslint-plugin-align-assignments": "^0.0.3",
     "@types/eslint": "^7.28.1",
