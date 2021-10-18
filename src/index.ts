@@ -1,15 +1,16 @@
-import { ESLint, Linter } from "eslint";
-import { Options as PrettierOptions } from "prettier";
+import type { ESLint, Linter } from "eslint";
+import type { Options as PrettierOptions } from "prettier";
+
+import * as E from "fp-ts/Either";
+import { pipe } from "fp-ts/function";
 import * as O from "fp-ts/Option";
-import * as Str from "fp-ts/string";
 import * as A from "fp-ts/ReadonlyArray";
 import * as R from "fp-ts/Record";
-import { pipe } from "fp-ts/function";
-import * as fs from "fs";
+import * as Str from "fp-ts/string";
 import * as TE from "fp-ts/TaskEither";
-import requireRelative from "require-relative";
+import * as fs from "fs";
 import path from "path";
-import * as E from "fp-ts/Either";
+import requireRelative from "require-relative";
 
 type ConfigOption = string | number | boolean | Record<string, any>;
 type PrettierConfig = Record<string, any>;
@@ -67,9 +68,7 @@ const getRuleValue =
       if (typeof value === "object") {
         if (key) {
           const subValue = value[key];
-          return subValue === undefined
-            ? ruleNotConfigured
-            : ruleValue(subValue);
+          return subValue === undefined ? ruleNotConfigured : ruleValue(subValue);
         } else {
           return ruleValue(value);
         }
@@ -82,10 +81,7 @@ const getRuleValue =
 
 const makePrettierOption =
   (name: string) =>
-  (
-    value: RuleValue,
-    fallbacks: Record<string, ConfigOption>
-  ): O.Option<ConfigOption> => {
+  (value: RuleValue, fallbacks: Record<string, ConfigOption>): O.Option<ConfigOption> => {
     if (isValue(value)) {
       return O.some(value.value);
     }
@@ -142,10 +138,7 @@ const configConversions: ConfigConversions = {
       if (isValue(value)) {
         if (value.value === "none") {
           prettierValue = ruleValue("never");
-        } else if (
-          typeof value.value === "string" &&
-          value.value.indexOf("always") === 0
-        ) {
+        } else if (typeof value.value === "string" && value.value.indexOf("always") === 0) {
           prettierValue = ruleValue("es5");
         } else {
           prettierValue = ruleNotConfigured;
@@ -204,9 +197,7 @@ const configConversions: ConfigConversions = {
     ruleValue: getRuleValue("arrow-parens"),
     ruleValueToPrettierOption: (value, fallbacks) =>
       makePrettierOption("arrowParens")(
-        isValue(value) && value.value === "as-needed"
-          ? ruleValue("avoid")
-          : value,
+        isValue(value) && value.value === "as-needed" ? ruleValue("avoid") : value,
         fallbacks
       ),
   },
@@ -218,10 +209,7 @@ const getPrettierConfigForEslintRules = (
   fallbackPrettierOptions: PrettierConfig
 ): PrettierConfig => {
   const prettierPluginOptions = getRuleValue("prettier/prettier")(eslintRules);
-  if (
-    isValue(prettierPluginOptions) &&
-    typeof prettierPluginOptions.value === "object"
-  ) {
+  if (isValue(prettierPluginOptions) && typeof prettierPluginOptions.value === "object") {
     prettierOptions = { ...prettierOptions, ...prettierPluginOptions.value };
   }
 
@@ -262,10 +250,7 @@ function getEslint(eslintPath: string, eslintOptions?: ESLint.Options) {
   );
 }
 
-function importModule<A>(
-  path: string,
-  moduleName: string
-): TE.TaskEither<Error, A> {
+function importModule<A>(path: string, moduleName: string): TE.TaskEither<Error, A> {
   return pipe(
     TE.tryCatch(
       () => import(path) as Promise<A>,
@@ -312,8 +297,7 @@ const getEslintConfig = (
     TE.bind(
       "config",
       TE.tryCatchK(
-        ({ eslint }) =>
-          eslint.calculateConfigForFile(filePath) as Promise<Linter.Config>,
+        ({ eslint }) => eslint.calculateConfigForFile(filePath) as Promise<Linter.Config>,
         (err) => err as Error
       )
     ),
@@ -326,9 +310,7 @@ const getEslintConfig = (
 
 const readFile = TE.taskify(fs.readFile);
 
-export const formatTE = (
-  options: FormatOptions
-): TE.TaskEither<Error, string> =>
+export const formatTE = (options: FormatOptions): TE.TaskEither<Error, string> =>
   pipe(
     TE.Do,
     TE.bind("text", () =>
@@ -343,14 +325,10 @@ export const formatTE = (
       TE.right(options.eslintPath ?? getModulePath(options.filePath, "eslint"))
     ),
     TE.bind("prettierPath", () =>
-      TE.right(
-        options.prettierPath ?? getModulePath(options.filePath, "prettier")
-      )
+      TE.right(options.prettierPath ?? getModulePath(options.filePath, "prettier"))
     ),
     TE.bind("prettierLast", () => TE.right(options.prettierLast ?? false)),
-    TE.bind("fallbackPrettierOptions", () =>
-      TE.right(options.prettierLast ?? {})
-    ),
+    TE.bind("fallbackPrettierOptions", () => TE.right(options.prettierLast ?? {})),
     TE.chain(({ eslintPath, prettierPath, ...rest }) =>
       pipe(
         TE.Do,
@@ -394,40 +372,39 @@ export const formatTE = (
           )
         )
     ),
-    TE.chain(
-      ({ eslintPath, text, eslintConfig, inferredPrettierConfig, prettier }) =>
-        pipe(
-          TE.tryCatch(
-            () =>
-              new Promise<string>((resolve) =>
-                resolve(
-                  prettier.format(text, {
-                    ...inferredPrettierConfig,
-                    filepath: options.filePath,
-                  })
-                )
-              ),
-            (err) => err as Error
-          ),
-          TE.chain((prettified) =>
-            pipe(
-              getEslint(eslintPath, { fix: true, ...eslintConfig }),
-              TE.chain(
-                TE.tryCatchK(
-                  (eslint) =>
-                    eslint.lintText(prettified, { filePath: options.filePath }),
-                  (err) => err as Error
-                )
-              ),
-              TE.map((lintResults) =>
-                pipe(
-                  lintResults,
-                  A.filterMap((r) => (r.output ? O.some(r.output) : O.none))
-                ).join("")
+    TE.chain(({ eslintPath, text, eslintConfig, inferredPrettierConfig, prettier }) =>
+      pipe(
+        TE.tryCatch(
+          () =>
+            new Promise<string>((resolve) =>
+              resolve(
+                prettier.format(text, {
+                  ...inferredPrettierConfig,
+                  filepath: options.filePath,
+                })
               )
-            )
+            ),
+          (err) => err as Error
+        ),
+        TE.chain((prettified) =>
+          pipe(
+            getEslint(eslintPath, { fix: true, ...eslintConfig }),
+            TE.chain(
+              TE.tryCatchK(
+                (eslint) => eslint.lintText(prettified, { filePath: options.filePath }),
+                (err) => err as Error
+              )
+            ),
+            TE.map((lintResults) =>
+              pipe(
+                lintResults,
+                A.filterMap((r) => (r.output ? O.some(r.output) : O.none))
+              ).join("")
+            ),
+            TE.map((output) => (output === "" ? prettified : output))
           )
         )
+      )
     )
   );
 
