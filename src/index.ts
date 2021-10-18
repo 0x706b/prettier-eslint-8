@@ -1,253 +1,253 @@
-import type { ESLint, Linter } from "eslint";
-import type { Options as PrettierOptions } from "prettier";
+import type { ESLint, Linter } from 'eslint'
+import type { Options as PrettierOptions } from 'prettier'
 
-import * as E from "fp-ts/Either";
-import { pipe } from "fp-ts/function";
-import * as O from "fp-ts/Option";
-import * as A from "fp-ts/ReadonlyArray";
-import * as R from "fp-ts/Record";
-import * as Str from "fp-ts/string";
-import * as TE from "fp-ts/TaskEither";
-import * as fs from "fs";
-import path from "path";
-import requireRelative from "require-relative";
+import * as E from 'fp-ts/Either'
+import { pipe } from 'fp-ts/function'
+import * as O from 'fp-ts/Option'
+import * as A from 'fp-ts/ReadonlyArray'
+import * as R from 'fp-ts/Record'
+import * as Str from 'fp-ts/string'
+import * as TE from 'fp-ts/TaskEither'
+import * as fs from 'fs'
+import path from 'path'
+import requireRelative from 'require-relative'
 
-type ConfigOption = string | number | boolean | Record<string, any>;
-type PrettierConfig = Record<string, any>;
+type ConfigOption = string | number | boolean | Record<string, any>
+type PrettierConfig = Record<string, any>
 
 interface Value {
-  readonly _tag: "Value";
-  readonly value: ConfigOption;
+  readonly _tag: 'Value'
+  readonly value: ConfigOption
 }
 
 const ruleValue = (value: ConfigOption): RuleValue => ({
-  _tag: "Value",
+  _tag: 'Value',
   value,
-});
+})
 
 interface Disabled {
-  readonly _tag: "Disabled";
+  readonly _tag: 'Disabled'
 }
 
 const ruleDisabled: RuleValue = {
-  _tag: "Disabled",
-};
+  _tag: 'Disabled',
+}
 
 interface NotConfigured {
-  readonly _tag: "NotConfigured";
+  readonly _tag: 'NotConfigured'
 }
 
 const ruleNotConfigured: RuleValue = {
-  _tag: "NotConfigured",
-};
+  _tag: 'NotConfigured',
+}
 
-type RuleValue = Value | Disabled | NotConfigured;
+type RuleValue = Value | Disabled | NotConfigured
 
-const isValue = (rv: RuleValue): rv is Value => rv._tag === "Value";
+const isValue = (rv: RuleValue): rv is Value => rv._tag === 'Value'
 
 type ConfigConversions = Partial<{
   [K in keyof PrettierOptions]: {
-    ruleValue: (rules: Linter.RulesRecord) => RuleValue;
+    ruleValue: (rules: Linter.RulesRecord) => RuleValue
     ruleValueToPrettierOption: (
       value: RuleValue,
       fallbacks: Record<string, ConfigOption>
-    ) => O.Option<ConfigOption>;
-  };
-}>;
+    ) => O.Option<ConfigOption>
+  }
+}>
 
 const getRuleValue =
   (name: string, key?: string) =>
   (rules: Partial<Linter.RulesRecord>): RuleValue => {
-    const rule = rules[name];
+    const rule = rules[name]
     if (Array.isArray(rule)) {
-      const [ruleSetting, value] = rule;
-      if (ruleSetting === 0 || ruleSetting === "off") {
-        return ruleDisabled;
+      const [ruleSetting, value] = rule
+      if (ruleSetting === 0 || ruleSetting === 'off') {
+        return ruleDisabled
       }
 
-      if (typeof value === "object") {
+      if (typeof value === 'object') {
         if (key) {
-          const subValue = value[key];
-          return subValue === undefined ? ruleNotConfigured : ruleValue(subValue);
+          const subValue = value[key]
+          return subValue === undefined ? ruleNotConfigured : ruleValue(subValue)
         } else {
-          return ruleValue(value);
+          return ruleValue(value)
         }
       } else {
-        return ruleValue(value);
+        return ruleValue(value)
       }
     }
-    return ruleNotConfigured;
-  };
+    return ruleNotConfigured
+  }
 
 const makePrettierOption =
   (name: string) =>
   (value: RuleValue, fallbacks: Record<string, ConfigOption>): O.Option<ConfigOption> => {
     if (isValue(value)) {
-      return O.some(value.value);
+      return O.some(value.value)
     }
 
-    return pipe(fallbacks, R.lookup(name));
-  };
+    return pipe(fallbacks, R.lookup(name))
+  }
 
 const eslintToBoolean = (eslintValue: RuleValue): RuleValue => {
   if (isValue(eslintValue)) {
-    if (eslintValue.value === "always") {
-      return ruleValue(true);
-    } else if (eslintValue.value === "never") {
-      return ruleValue(false);
+    if (eslintValue.value === 'always') {
+      return ruleValue(true)
+    } else if (eslintValue.value === 'never') {
+      return ruleValue(false)
     }
   }
-  return eslintValue;
-};
+  return eslintValue
+}
 
 const configConversions: ConfigConversions = {
   printWidth: {
-    ruleValue: getRuleValue("max-len", "code"),
-    ruleValueToPrettierOption: makePrettierOption("printWidth"),
+    ruleValue: getRuleValue('max-len', 'code'),
+    ruleValueToPrettierOption: makePrettierOption('printWidth'),
   },
   tabWidth: {
     ruleValue: (rules) => {
-      let indent = getRuleValue("indent")(rules);
-      if (isValue(indent) && indent.value === "tab") {
-        indent = getRuleValue("max-len", "tabWidth")(rules);
+      let indent = getRuleValue('indent')(rules)
+      if (isValue(indent) && indent.value === 'tab') {
+        indent = getRuleValue('max-len', 'tabWidth')(rules)
       }
-      return indent;
+      return indent
     },
-    ruleValueToPrettierOption: makePrettierOption("tabWidth"),
+    ruleValueToPrettierOption: makePrettierOption('tabWidth'),
   },
   singleQuote: {
-    ruleValue: getRuleValue("quotes"),
+    ruleValue: getRuleValue('quotes'),
     ruleValueToPrettierOption: (value, fallbacks) => {
-      let prettierValue: RuleValue;
+      let prettierValue: RuleValue
       if (isValue(value)) {
-        if (value.value === "single") {
-          prettierValue = ruleValue(true);
+        if (value.value === 'single') {
+          prettierValue = ruleValue(true)
         } else {
-          prettierValue = ruleValue(false);
+          prettierValue = ruleValue(false)
         }
       } else {
-        prettierValue = value;
+        prettierValue = value
       }
-      return makePrettierOption("singleQuote")(prettierValue, fallbacks);
+      return makePrettierOption('singleQuote')(prettierValue, fallbacks)
     },
   },
   trailingComma: {
-    ruleValue: getRuleValue("comma-dangle"),
+    ruleValue: getRuleValue('comma-dangle'),
     ruleValueToPrettierOption: (value, fallbacks) => {
-      let prettierValue: RuleValue;
+      let prettierValue: RuleValue
       if (isValue(value)) {
-        if (value.value === "none") {
-          prettierValue = ruleValue("never");
-        } else if (typeof value.value === "string" && value.value.indexOf("always") === 0) {
-          prettierValue = ruleValue("es5");
+        if (value.value === 'none') {
+          prettierValue = ruleValue('never')
+        } else if (typeof value.value === 'string' && value.value.indexOf('always') === 0) {
+          prettierValue = ruleValue('es5')
         } else {
-          prettierValue = ruleNotConfigured;
+          prettierValue = ruleNotConfigured
         }
       } else {
-        prettierValue = ruleNotConfigured;
+        prettierValue = ruleNotConfigured
       }
-      return makePrettierOption("trailingComma")(prettierValue, fallbacks);
+      return makePrettierOption('trailingComma')(prettierValue, fallbacks)
     },
   },
   bracketSpacing: {
-    ruleValue: getRuleValue("object-curly-spacing"),
+    ruleValue: getRuleValue('object-curly-spacing'),
     ruleValueToPrettierOption: (value, fallbacks) =>
-      makePrettierOption("bracketSpacing")(eslintToBoolean(value), fallbacks),
+      makePrettierOption('bracketSpacing')(eslintToBoolean(value), fallbacks),
   },
   semi: {
-    ruleValue: getRuleValue("semi"),
+    ruleValue: getRuleValue('semi'),
     ruleValueToPrettierOption: (value, fallbacks) =>
-      makePrettierOption("semi")(eslintToBoolean(value), fallbacks),
+      makePrettierOption('semi')(eslintToBoolean(value), fallbacks),
   },
   useTabs: {
-    ruleValue: getRuleValue("indent"),
+    ruleValue: getRuleValue('indent'),
     ruleValueToPrettierOption: (value, fallbacks) => {
-      let prettierValue: RuleValue;
-      if (isValue(value) && value.value === "tab") {
-        prettierValue = ruleValue(true);
+      let prettierValue: RuleValue
+      if (isValue(value) && value.value === 'tab') {
+        prettierValue = ruleValue(true)
       } else {
-        prettierValue = ruleNotConfigured;
+        prettierValue = ruleNotConfigured
       }
-      return makePrettierOption("useTabs")(prettierValue, fallbacks);
+      return makePrettierOption('useTabs')(prettierValue, fallbacks)
     },
   },
   bracketSameLine: {
-    ruleValue: getRuleValue("react/jsx-closing-bracket-location", "nonEmpty"),
+    ruleValue: getRuleValue('react/jsx-closing-bracket-location', 'nonEmpty'),
     ruleValueToPrettierOption: (value, fallbacks) => {
-      let prettierValue: RuleValue;
+      let prettierValue: RuleValue
       if (isValue(value)) {
-        if (value.value === "after-props") {
-          prettierValue = ruleValue(true);
+        if (value.value === 'after-props') {
+          prettierValue = ruleValue(true)
         } else if (
-          value.value === "tag-aligned" ||
-          value.value === "line-aligned" ||
-          value.value === "props-aligned"
+          value.value === 'tag-aligned' ||
+          value.value === 'line-aligned' ||
+          value.value === 'props-aligned'
         ) {
-          prettierValue = ruleValue(false);
+          prettierValue = ruleValue(false)
         } else {
-          prettierValue = value;
+          prettierValue = value
         }
       } else {
-        prettierValue = value;
+        prettierValue = value
       }
-      return makePrettierOption("bracketSameLine")(prettierValue, fallbacks);
+      return makePrettierOption('bracketSameLine')(prettierValue, fallbacks)
     },
   },
   arrowParens: {
-    ruleValue: getRuleValue("arrow-parens"),
+    ruleValue: getRuleValue('arrow-parens'),
     ruleValueToPrettierOption: (value, fallbacks) =>
-      makePrettierOption("arrowParens")(
-        isValue(value) && value.value === "as-needed" ? ruleValue("avoid") : value,
+      makePrettierOption('arrowParens')(
+        isValue(value) && value.value === 'as-needed' ? ruleValue('avoid') : value,
         fallbacks
       ),
   },
-};
+}
 
 const getPrettierConfigForEslintRules = (
   eslintRules: Partial<Linter.RulesRecord>,
   prettierOptions: PrettierConfig,
   fallbackPrettierOptions: PrettierConfig
 ): PrettierConfig => {
-  const prettierPluginOptions = getRuleValue("prettier/prettier")(eslintRules);
-  if (isValue(prettierPluginOptions) && typeof prettierPluginOptions.value === "object") {
-    prettierOptions = { ...prettierOptions, ...prettierPluginOptions.value };
+  const prettierPluginOptions = getRuleValue('prettier/prettier')(eslintRules)
+  if (isValue(prettierPluginOptions) && typeof prettierPluginOptions.value === 'object') {
+    prettierOptions = { ...prettierOptions, ...prettierPluginOptions.value }
   }
 
   return pipe(
     configConversions as Record<
       string,
       {
-        ruleValue: (rules: Partial<Linter.RulesRecord>) => RuleValue;
+        ruleValue: (rules: Partial<Linter.RulesRecord>) => RuleValue
         ruleValueToPrettierOption: (
           value: RuleValue,
           fallbacks: Record<string, ConfigOption>
-        ) => O.Option<ConfigOption>;
+        ) => O.Option<ConfigOption>
       }
     >,
     R.reduceWithIndex(Str.Ord)(
       prettierOptions,
       (k, options, { ruleValue, ruleValueToPrettierOption }) => {
-        const eslintRuleValue = ruleValue(eslintRules);
+        const eslintRuleValue = ruleValue(eslintRules)
         return pipe(
           ruleValueToPrettierOption(eslintRuleValue, fallbackPrettierOptions),
           O.match(
             () => options,
             (opt) => {
-              options[k] = opt;
-              return options;
+              options[k] = opt
+              return options
             }
           )
-        );
+        )
       }
     )
-  );
-};
+  )
+}
 
 function getEslint(eslintPath: string, eslintOptions?: ESLint.Options) {
   return pipe(
-    importModule<typeof import("eslint")>(eslintPath, "eslint"),
+    importModule<typeof import('eslint')>(eslintPath, 'eslint'),
     TE.map(({ ESLint }) => new ESLint(eslintOptions))
-  );
+  )
 }
 
 function importModule<A>(path: string, moduleName: string): TE.TaskEither<Error, A> {
@@ -264,27 +264,27 @@ function importModule<A>(path: string, moduleName: string): TE.TaskEither<Error,
         ),
       TE.right
     )
-  );
+  )
 }
 
 interface FormatOptions {
-  filePath: string;
-  text?: string;
-  eslintPath?: string;
-  prettierPath?: string;
-  eslintConfig?: ESLint.Options;
-  prettierOptions?: PrettierOptions;
-  fallbackPrettierOptions?: PrettierOptions;
-  prettierLast?: boolean;
+  filePath: string
+  text?: string
+  eslintPath?: string
+  prettierPath?: string
+  eslintConfig?: ESLint.Options
+  prettierOptions?: PrettierOptions
+  fallbackPrettierOptions?: PrettierOptions
+  prettierLast?: boolean
 }
 
 const getModulePath = (filePath: string, moduleName: string) => {
   try {
-    return requireRelative.resolve(moduleName, filePath);
+    return requireRelative.resolve(moduleName, filePath)
   } catch (_) {
-    return require.resolve(moduleName);
+    return require.resolve(moduleName)
   }
-};
+}
 
 const getEslintConfig = (
   filePath: string,
@@ -292,10 +292,10 @@ const getEslintConfig = (
 ): TE.TaskEither<never, ESLint.Options> =>
   pipe(
     TE.Do,
-    TE.bind("cwd", () => TE.right(path.dirname(filePath))),
-    TE.bind("eslint", ({ cwd }) => getEslint(eslintPath, { cwd })),
+    TE.bind('cwd', () => TE.right(path.dirname(filePath))),
+    TE.bind('eslint', ({ cwd }) => getEslint(eslintPath, { cwd })),
     TE.bind(
-      "config",
+      'config',
       TE.tryCatchK(
         ({ eslint }) => eslint.calculateConfigForFile(filePath) as Promise<Linter.Config>,
         (err) => err as Error
@@ -306,37 +306,37 @@ const getEslintConfig = (
       baseConfig: config,
     })),
     TE.matchW(() => E.right({ baseConfig: { rules: {} } }), E.right)
-  );
+  )
 
-const readFile = TE.taskify(fs.readFile);
+const readFile = TE.taskify(fs.readFile)
 
 export const formatTE = (options: FormatOptions): TE.TaskEither<Error, string> =>
   pipe(
     TE.Do,
-    TE.bind("text", () =>
+    TE.bind('text', () =>
       options?.text
         ? TE.right(options.text)
         : pipe(
             readFile(options.filePath),
-            TE.map((buffer) => buffer.toString("utf-8"))
+            TE.map((buffer) => buffer.toString('utf-8'))
           )
     ),
-    TE.bind("eslintPath", () =>
-      TE.right(options.eslintPath ?? getModulePath(options.filePath, "eslint"))
+    TE.bind('eslintPath', () =>
+      TE.right(options.eslintPath ?? getModulePath(options.filePath, 'eslint'))
     ),
-    TE.bind("prettierPath", () =>
-      TE.right(options.prettierPath ?? getModulePath(options.filePath, "prettier"))
+    TE.bind('prettierPath', () =>
+      TE.right(options.prettierPath ?? getModulePath(options.filePath, 'prettier'))
     ),
-    TE.bind("prettierLast", () => TE.right(options.prettierLast ?? false)),
-    TE.bind("fallbackPrettierOptions", () => TE.right(options.prettierLast ?? {})),
+    TE.bind('prettierLast', () => TE.right(options.prettierLast ?? false)),
+    TE.bind('fallbackPrettierOptions', () => TE.right(options.prettierLast ?? {})),
     TE.chain(({ eslintPath, prettierPath, ...rest }) =>
       pipe(
         TE.Do,
-        TE.apS("eslintConfig", getEslintConfig(options.filePath, eslintPath)),
+        TE.apS('eslintConfig', getEslintConfig(options.filePath, eslintPath)),
         TE.apS(
-          "prettier",
+          'prettier',
           pipe(
-            importModule<typeof import("prettier")>(prettierPath, "prettier"),
+            importModule<typeof import('prettier')>(prettierPath, 'prettier'),
             TE.chain(
               TE.tryCatchK(
                 (prettier) =>
@@ -362,7 +362,7 @@ export const formatTE = (options: FormatOptions): TE.TaskEither<Error, string> =
       )
     ),
     TE.bind(
-      "inferredPrettierConfig",
+      'inferredPrettierConfig',
       ({ prettierOptions, eslintConfig, fallbackPrettierOptions }) =>
         TE.right(
           getPrettierConfigForEslintRules(
@@ -399,19 +399,19 @@ export const formatTE = (options: FormatOptions): TE.TaskEither<Error, string> =
               pipe(
                 lintResults,
                 A.filterMap((r) => (r.output ? O.some(r.output) : O.none))
-              ).join("")
+              ).join('')
             ),
-            TE.map((output) => (output === "" ? prettified : output))
+            TE.map((output) => (output === '' ? prettified : output))
           )
         )
       )
     )
-  );
+  )
 
 export const format = async (options: FormatOptions): Promise<string> => {
-  const result = await formatTE(options)();
-  if (result._tag === "Left") {
-    throw result.left;
+  const result = await formatTE(options)()
+  if (result._tag === 'Left') {
+    throw result.left
   }
-  return result.right;
-};
+  return result.right
+}

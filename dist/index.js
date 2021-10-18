@@ -23,16 +23,16 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.format = exports.formatTE = void 0;
+const E = __importStar(require("fp-ts/Either"));
+const function_1 = require("fp-ts/function");
 const O = __importStar(require("fp-ts/Option"));
-const Str = __importStar(require("fp-ts/string"));
 const A = __importStar(require("fp-ts/ReadonlyArray"));
 const R = __importStar(require("fp-ts/Record"));
-const function_1 = require("fp-ts/function");
-const fs = __importStar(require("fs"));
+const Str = __importStar(require("fp-ts/string"));
 const TE = __importStar(require("fp-ts/TaskEither"));
-const require_relative_1 = __importDefault(require("require-relative"));
+const fs = __importStar(require("fs"));
 const path_1 = __importDefault(require("path"));
-const E = __importStar(require("fp-ts/Either"));
+const require_relative_1 = __importDefault(require("require-relative"));
 const ruleValue = (value) => ({
     _tag: "Value",
     value,
@@ -54,9 +54,7 @@ const getRuleValue = (name, key) => (rules) => {
         if (typeof value === "object") {
             if (key) {
                 const subValue = value[key];
-                return subValue === undefined
-                    ? ruleNotConfigured
-                    : ruleValue(subValue);
+                return subValue === undefined ? ruleNotConfigured : ruleValue(subValue);
             }
             else {
                 return ruleValue(value);
@@ -126,8 +124,7 @@ const configConversions = {
                 if (value.value === "none") {
                     prettierValue = ruleValue("never");
                 }
-                else if (typeof value.value === "string" &&
-                    value.value.indexOf("always") === 0) {
+                else if (typeof value.value === "string" && value.value.indexOf("always") === 0) {
                     prettierValue = ruleValue("es5");
                 }
                 else {
@@ -186,15 +183,12 @@ const configConversions = {
     },
     arrowParens: {
         ruleValue: getRuleValue("arrow-parens"),
-        ruleValueToPrettierOption: (value, fallbacks) => makePrettierOption("arrowParens")(isValue(value) && value.value === "as-needed"
-            ? ruleValue("avoid")
-            : value, fallbacks),
+        ruleValueToPrettierOption: (value, fallbacks) => makePrettierOption("arrowParens")(isValue(value) && value.value === "as-needed" ? ruleValue("avoid") : value, fallbacks),
     },
 };
 const getPrettierConfigForEslintRules = (eslintRules, prettierOptions, fallbackPrettierOptions) => {
     const prettierPluginOptions = getRuleValue("prettier/prettier")(eslintRules);
-    if (isValue(prettierPluginOptions) &&
-        typeof prettierPluginOptions.value === "object") {
+    if (isValue(prettierPluginOptions) && typeof prettierPluginOptions.value === "object") {
         prettierOptions = { ...prettierOptions, ...prettierPluginOptions.value };
     }
     return (0, function_1.pipe)(configConversions, R.reduceWithIndex(Str.Ord)(prettierOptions, (k, options, { ruleValue, ruleValueToPrettierOption }) => {
@@ -226,10 +220,7 @@ const getEslintConfig = (filePath, eslintPath) => (0, function_1.pipe)(TE.Do, TE
 const readFile = TE.taskify(fs.readFile);
 const formatTE = (options) => (0, function_1.pipe)(TE.Do, TE.bind("text", () => (options === null || options === void 0 ? void 0 : options.text)
     ? TE.right(options.text)
-    : (0, function_1.pipe)(readFile(options.filePath), TE.map((buffer) => buffer.toString("utf-8")))), TE.bind("eslintPath", () => { var _a; return TE.right((_a = options.eslintPath) !== null && _a !== void 0 ? _a : getModulePath(options.filePath, "eslint")); }), TE.bind("prettierPath", () => {
-    var _a;
-    return TE.right((_a = options.prettierPath) !== null && _a !== void 0 ? _a : getModulePath(options.filePath, "prettier"));
-}), TE.bind("prettierLast", () => { var _a; return TE.right((_a = options.prettierLast) !== null && _a !== void 0 ? _a : false); }), TE.bind("fallbackPrettierOptions", () => { var _a; return TE.right((_a = options.prettierLast) !== null && _a !== void 0 ? _a : {}); }), TE.chain(({ eslintPath, prettierPath, ...rest }) => (0, function_1.pipe)(TE.Do, TE.apS("eslintConfig", getEslintConfig(options.filePath, eslintPath)), TE.apS("prettier", (0, function_1.pipe)(importModule(prettierPath, "prettier"), TE.chain(TE.tryCatchK((prettier) => prettier
+    : (0, function_1.pipe)(readFile(options.filePath), TE.map((buffer) => buffer.toString("utf-8")))), TE.bind("eslintPath", () => { var _a; return TE.right((_a = options.eslintPath) !== null && _a !== void 0 ? _a : getModulePath(options.filePath, "eslint")); }), TE.bind("prettierPath", () => { var _a; return TE.right((_a = options.prettierPath) !== null && _a !== void 0 ? _a : getModulePath(options.filePath, "prettier")); }), TE.bind("prettierLast", () => { var _a; return TE.right((_a = options.prettierLast) !== null && _a !== void 0 ? _a : false); }), TE.bind("fallbackPrettierOptions", () => { var _a; return TE.right((_a = options.prettierLast) !== null && _a !== void 0 ? _a : {}); }), TE.chain(({ eslintPath, prettierPath, ...rest }) => (0, function_1.pipe)(TE.Do, TE.apS("eslintConfig", getEslintConfig(options.filePath, eslintPath)), TE.apS("prettier", (0, function_1.pipe)(importModule(prettierPath, "prettier"), TE.chain(TE.tryCatchK((prettier) => prettier
     .resolveConfig(options.filePath)
     .then((prettierOptions) => ({ prettierOptions, prettier })), (err) => err)), TE.map(({ prettier, prettierOptions }) => ({
     prettier,
@@ -246,7 +237,7 @@ const formatTE = (options) => (0, function_1.pipe)(TE.Do, TE.bind("text", () => 
 }), TE.chain(({ eslintPath, text, eslintConfig, inferredPrettierConfig, prettier }) => (0, function_1.pipe)(TE.tryCatch(() => new Promise((resolve) => resolve(prettier.format(text, {
     ...inferredPrettierConfig,
     filepath: options.filePath,
-}))), (err) => err), TE.chain((prettified) => (0, function_1.pipe)(getEslint(eslintPath, { fix: true, ...eslintConfig }), TE.chain(TE.tryCatchK((eslint) => eslint.lintText(prettified, { filePath: options.filePath }), (err) => err)), TE.map((lintResults) => (0, function_1.pipe)(lintResults, A.filterMap((r) => (r.output ? O.some(r.output) : O.none))).join("")))))));
+}))), (err) => err), TE.chain((prettified) => (0, function_1.pipe)(getEslint(eslintPath, { fix: true, ...eslintConfig }), TE.chain(TE.tryCatchK((eslint) => eslint.lintText(prettified, { filePath: options.filePath }), (err) => err)), TE.map((lintResults) => (0, function_1.pipe)(lintResults, A.filterMap((r) => (r.output ? O.some(r.output) : O.none))).join("")), TE.map((output) => (output === "" ? prettified : output)))))));
 exports.formatTE = formatTE;
 const format = async (options) => {
     const result = await (0, exports.formatTE)(options)();
